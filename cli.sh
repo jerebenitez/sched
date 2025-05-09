@@ -60,11 +60,27 @@ command_check() {
     echo "🔍 Running check on patches and file existence..."
     local failed=0
     for file in $(rel_paths); do
-        if [[ -f "$SRC_DIR/$file" ]]; then
+        src_file="$SRC_DIR/$file"
+        orig_file="orig/$file"
+
+        # 1. Verify existence
+        if [[ -f "$src_file" ]]; then
             echo "[✔] $file exists in source tree"
         else
             echo "[✘] $file missing in source tree"
             failed=1
+        fi
+
+        # 2. Verify if something changed
+        if [[ -f "$orig_file" ]]; then
+            if ! diff -q "$orig_file" "$src_file" &> /dev/null; then
+                echo "[⚠️ ] $file has changed since original (orig/ differs)"
+                failed=1
+            else
+                echo "[✔] $file is identical to orig/"
+            fi
+        else
+            echo "[⚠️ ] No orig/ version for $file. Can't compare."
         fi
     done
 
