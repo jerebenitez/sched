@@ -1,0 +1,25 @@
+diff --git a/sys/conf/files b/sys/conf/files
+index c902bcfdb..49c9af52b 100644
+--- a/sys/conf/files
++++ b/sys/conf/files
+@@ -3835,6 +3835,9 @@ kern/p1003_1b.c			standard
+ kern/posix4_mib.c		standard
+ kern/sched_4bsd.c		optional sched_4bsd
+ kern/sched_ule.c		optional sched_ule
++kern/petri_global_net.c standard
++kern/sched_petri.c      standard
++kern/metadata_elf_reader.c	standard
+ kern/serdev_if.m		standard
+ kern/stack_protector.c		standard \
+ 	compile-with "${NORMAL_C:N-fstack-protector*}"
+@@ -5180,6 +5183,10 @@ security/mac_veriexec/mac_veriexec_sha1.c		optional mac_veriexec_sha1
+ security/mac_veriexec/mac_veriexec_sha256.c		optional mac_veriexec_sha256
+ security/mac_veriexec/mac_veriexec_sha384.c		optional mac_veriexec_sha384
+ security/mac_veriexec/mac_veriexec_sha512.c		optional mac_veriexec_sha512
++stats/thread_stats.c 		optional sched_stats
++stats/cpu_stats.c 			optional sched_stats
++stats/toggle_active_cpu.c	optional sched_stats
++stats/modlib.c				optional sched_stats
+ teken/teken.c			optional sc !SC_NO_TERM_TEKEN | vt
+ ufs/ffs/ffs_alloc.c		optional ffs
+ ufs/ffs/ffs_balloc.c		optional ffs

@@ -1,0 +1,57 @@
+diff --git a/sys/kern/imgact_elf.c b/sys/kern/imgact_elf.c
+index 4cee366ed..a9400ab8e 100644
+--- a/sys/kern/imgact_elf.c
++++ b/sys/kern/imgact_elf.c
+@@ -68,6 +68,7 @@
+ #include <sys/syslog.h>
+ #include <sys/eventhandler.h>
+ #include <sys/user.h>
++#include <sys/metadata_elf_reader.h>
+ 
+ #include <vm/vm.h>
+ #include <vm/vm_kern.h>
+@@ -1125,6 +1126,25 @@ __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp)
+ 	    (hdr->e_type != ET_EXEC && hdr->e_type != ET_DYN))
+ 		return (-1);
+ 
++	/* 1) Call getMetadataSectionPayload() function and print metadata
++		Iterate over ELF executable file of the process. 
++	
++		Values of returned_flag:
++		-1: error in retrieving metadata (allocation problems, etc).
++		1: metadata section was found in ELF and section data correctly retrieved.
++		2: metadata section was not found in ELF.
++
++	*/
++	int returned_flag = 0;
++	size_t payload_size = 0;
++	void* ELFmetadata = getMetadataSectionPayload(hdr, imgp, &returned_flag, &payload_size);
++
++	//log(LOG_INFO, "\t1) // __CONCAT(exec_, __elfN(imgact)) // LectorELF // -- *** METADATA: %p -- PAYLOAD SIZE: %lu -- RETURNED FLAG: %d ***\n", ELFmetadata, payload_size , returned_flag);
++	if (ELFmetadata == NULL && returned_flag == -1) {
++		//log(LOG_INFO, "\t1) // __CONCAT(exec_, __elfN(imgact)) // LectorELF // -- ERROR getMetadataSectionPayload()\n");
++		return (ENOEXEC);
++	}
++
+ 	/*
+ 	 * From here on down, we return an errno, not -1, as we've
+ 	 * detected an ELF file.
+@@ -1149,6 +1169,18 @@ __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp)
+ 	free_interp = false;
+ 	td = curthread;
+ 
++	/* * METADATA: Assign metadata returned flag to proc struct */
++	td->td_proc->p_metadata_section_flag = returned_flag; //redundant? its copied below
++
++	if (returned_flag == 1) {
++		/* COPY ADDRESS OF THE ALLOCATED SPACE CONTAINING THE METADATA, THE RETURNED FLAG OF ITS SEARCH AND THE SIZE OF THE METADATA SECTION 
++		TO THE PROC STRUCT ASSOCIATED TO THE ACTUAL THREAD*/
++		copyMetadataToProc(ELFmetadata, returned_flag, payload_size, td);
++	
++		/* DECODE THE METADATA SENT IN ELF AND PRINT THE VALUES OF THE PAYLOAD STRUCT MEMBERS*/
++		//decodeMetadataSectionThread(td);
++	}
++
+ 	/*
+ 	 * Somewhat arbitrary, limit accepted max alignment for the
+ 	 * loadable segment to the max supported superpage size. Too

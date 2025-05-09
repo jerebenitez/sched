@@ -1,0 +1,32 @@
+diff --git a/sys/kern/kern_thread.c b/sys/kern/kern_thread.c
+index 5847d5cea..ad8536424 100644
+--- a/sys/kern/kern_thread.c
++++ b/sys/kern/kern_thread.c
+@@ -44,6 +44,7 @@
+ #include <sys/resourcevar.h>
+ #include <sys/sdt.h>
+ #include <sys/smp.h>
++#include <sys/sched_petri.h>
+ #include <sys/sched.h>
+ #include <sys/sleepqueue.h>
+ #include <sys/selinfo.h>
+@@ -96,9 +97,9 @@ _Static_assert(offsetof(struct proc, p_pid) == 0xc4,
+     "struct proc KBI p_pid");
+ _Static_assert(offsetof(struct proc, p_filemon) == 0x3c8,
+     "struct proc KBI p_filemon");
+-_Static_assert(offsetof(struct proc, p_comm) == 0x3e0,
++_Static_assert(offsetof(struct proc, p_comm) == 0x3f8,
+     "struct proc KBI p_comm");
+-_Static_assert(offsetof(struct proc, p_emuldata) == 0x4d0,
++_Static_assert(offsetof(struct proc, p_emuldata) == 0x4e8,
+     "struct proc KBI p_emuldata");
+ #endif
+ #ifdef __i386__
+@@ -801,6 +802,7 @@ thread_alloc(int pages)
+ 	kmsan_thread_alloc(td);
+ 	cpu_thread_alloc(td);
+ 	EVENTHANDLER_DIRECT_INVOKE(thread_ctor, td);
++	init_petri_thread(td);
+ 	return (td);
+ }
+ 

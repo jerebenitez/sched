@@ -1,0 +1,54 @@
+diff --git a/sys/sys/proc.h b/sys/sys/proc.h
+index b08226c89..bab3f1a03 100644
+--- a/sys/sys/proc.h
++++ b/sys/sys/proc.h
+@@ -226,6 +226,23 @@ struct rusage_ext {
+ 	uint64_t	rux_tu;         /* (c) Previous total time in usec. */
+ };
+ 
++/* DEFINITIONS OF TRANSITIONS AND PLACES FOR THREAD NET*/
++#define THREADS_PLACES_SIZE 5
++#define PLACE_INACTIVE 		0
++#define PLACE_CAN_RUN 		1
++#define PLACE_CPU_RUN_QUEUE 2
++#define PLACE_RUNNING 		3
++#define PLACE_INHIBITED 	4
++
++#define THREADS_TRANSITIONS_SIZE 7
++#define TRAN_INIT 				 0
++#define TRAN_ON_QUEUE 			 1
++#define TRAN_SET_RUNNING 		 2
++#define TRAN_SWITCH_OUT 		 3
++#define TRAN_TO_WAIT_CHANNEL 	 4
++#define TRAN_WAKEUP 			 5
++#define TRAN_REMOVE 			 6
++
+ /*
+  * Kernel runnable context (thread).
+  * This is what is put to sleep and reactivated.
+@@ -250,6 +267,7 @@ struct thread {
+ 	struct rl_q_entry *td_rlqe;	/* (k) Associated range lock entry. */
+ 	struct umtx_q   *td_umtxq;	/* (c?) Link for when we're blocked. */
+ 	lwpid_t		td_tid;		/* (b) Thread ID. */
++	int 		td_frominh;		/* Thread comes from an inhibited state*/
+ 	sigqueue_t	td_sigqueue;	/* (c) Sigs arrived, not delivered. */
+ #define	td_siglist	td_sigqueue.sq_signals
+ 	u_char		td_lend_user_pri; /* (t) Lend user pri. */
+@@ -382,6 +400,7 @@ struct thread {
+ 	void		*td_emuldata;	/* Emulator state data */
+ 	int		td_lastcpu;	/* (t) Last cpu we were on. */
+ 	int		td_oncpu;	/* (t) Which cpu we are on. */
++	int 	mark[THREADS_PLACES_SIZE];
+ 	void		*td_lkpi_task;	/* LinuxKPI task struct pointer */
+ 	int		td_pmcpend;
+ 	void		*td_remotereq;	/* (c) dbg remote request. */
+@@ -720,6 +739,9 @@ struct proc {
+ 	int		p_pendingexits; /* (c) Count of pending thread exits. */
+ 	struct filemon	*p_filemon;	/* (c) filemon-specific data. */
+ 	int		p_pdeathsig;	/* (c) Signal from parent on exit. */
++	void	*p_metadata_addr;			/* Address of the allocated data from metadata section */
++	u_long 	p_metadata_size;				/* Size of the whole metadata section */
++	int 	p_metadata_section_flag;		/* Flag of metadata section presence in executable */
+ /* End area that is zeroed on creation. */
+ #define	p_endzero	p_magic
+ 
