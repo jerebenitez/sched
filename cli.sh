@@ -11,10 +11,30 @@ print_usage() {
     echo "Commands:"
     echo "  check|c             Test if patch applies cleanly over current files"
     echo "  install|i           Copy files and apply patches"
-    echo "  generate-diff|gd    Generate diff from orig/ and src/ into patches/"
+    echo "  generate-diff|gd    Generate diff from source tree into patches/ and copy original files"
     echo ""
     echo "Options:"
     echo "  --src=<path>        Path to the FreeBSD source tree (default: /usr/src)"
+}
+
+print_generate_diff_usage() {
+    echo ""
+    echo "Usage: $0 [--src=<path>] gd -i <file> [--original=<path>]"
+    echo ""
+    echo "Description:"
+    echo "  Generate a patch for a modified file in the source tree."
+    echo "  - If the file exists in Git, the original version is taken from HEAD."
+    echo "  - If Git is not available, you must provide the original version manually."
+    echo ""
+    echo "Options:"
+    echo "  -i, --input <file>           Relative path to the file inside the source tree (e.g. sys/kern/kern_exec.c)"
+    echo "      --original=<path>        Path to the original (unmodified) file. Required if the source tree is not a Git repo."
+    echo "      --src=<path>             Path to the FreeBSD source tree (default: /usr/src)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --src=/usr/src gd -i sys/kern/kern_exec.c"
+    echo "  $0 gd -i sys/kern/kern_exec.c --original=/home/user/kern_exec_orig.c"
+    echo ""
 }
 
 parse_global_opts() {
@@ -117,7 +137,7 @@ command_generate_diff() {
                 orig_override="${1#*=}"
                 ;;
             *)
-                echo "[!] Unknown option for generate-diff: $1"
+                print_generate_diff_usage
                 exit 1
                 ;;
         esac
@@ -126,6 +146,7 @@ command_generate_diff() {
 
     if [[ -z "$input_file" ]]; then
         echo "[!] You must specify a file with -i path/to/file"
+        print_generate_diff_usage
         return 1
     fi
 
