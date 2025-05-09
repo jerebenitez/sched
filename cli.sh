@@ -3,7 +3,6 @@
 set -e
 
 SRC_DIR="/usr/src"
-TOOL="diff3"
 
 print_usage() {
     echo "Usage: $0 [--src=<path>] <command> [options]"
@@ -101,15 +100,23 @@ command_check() {
 
 command_install() {
     echo "📁 Installing files to $SRC_DIR..."
-    for file in $(rel_paths); do
-        echo "  → Copying $file"
-        cp "src/$file" "$SRC_DIR/$file"
+    find src -type f | while read -r file_path; do
+        rel_file="${file_path#src/}"
+        dest="$SRC_DIR/$rel_file"
+        echo "  → Copying $rel_file"
+        mkdir -p "$(dirname "$dest")"
+        cp "src/$rel_file" "$dest"
     done
 
     echo "📦 Applying patches..."
-    for patch in patches/*.patch; do
-        echo "  → Applying $patch"
-        patch -p1 -d "$SRC_DIR" < "$patch"
+    find patches -type f -name "*.patch" | while read -r patch_path; do
+        rel_file="${patch_path#patches/}"
+        rel_file="${rel_file%.patch}"
+
+        target_file="$SRC_DIR/$rel_file"
+
+        echo "  → Applying $patch_path"
+        patch -p1 --strip=0 "$target_file" < "$patch_path" &> /dev/null
     done
 
     echo "✅ Installation complete."
@@ -187,11 +194,7 @@ command_generate_diff() {
 }
 
 ### Entry Point
-
-# Extract global options
 parse_global_opts "$@"
-
-# Shift global options
 while [[ "$1" == --* ]]; do shift; done
 
 CMD="$1"; shift || true
