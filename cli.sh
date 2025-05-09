@@ -96,21 +96,73 @@ command_install() {
 }
 
 command_generate_diff() {
-    echo "🛠️ Generating diffs from orig/ and src/"
-    for file in $(rel_paths); do
-        orig_file="orig/$file"
-        src_file="$SRC_DIR/$file"
-        patch_file="patches/$(basename "$file").patch"
+    local input_file=""
+    local orig_override=""
 
-        if [[ -f "$orig_file" && -f "$src_file" ]]; then
-            echo "  → Generating diff for $file"
-            mkdir -p patches
-            diff -u "$orig_file" "$src_file" > "$patch_file" || true
-        else
-            echo "[!] Skipping $file (missing orig or source-tree file)"
-        fi
+    # Parse command-specific options
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            -i|--input)
+                shift
+                input_file="$1"
+                ;;
+            --input=*)
+                input_file="${1#*=}"
+                ;;
+            --original)
+                shift
+                orig_override="$1"
+                ;;
+            --original=*)
+                orig_override="${1#*=}"
+                ;;
+            *)
+                echo "[!] Unknown option for generate-diff: $1"
+                exit 1
+                ;;
+        esac
+        shift
     done
-    echo "✅ Patch generation complete."
+
+    if [[ -z "$input_file" ]]; then
+        echo "[!] You must specify a file with -i path/to/file"
+        return 1
+    fi
+
+    local src_path="$SRC_DIR/$input_file"
+    local orig_path="orig/$input_file"
+    local patch_path="patches/$input_file.patch"
+
+    mkdir -p "$(dirname "$orig_path")" "$(dirname "$patch_path")"
+
+    echo "📄 Generating diff for: $input_file"
+
+    if [[ -n "$orig_override" ]]; then
+        # No Git — use provided original file
+        echo "🔹 Using user-provided original: $orig_override"
+        cp "$orig_override" "$orig_path"
+    elif git -C "$SRC_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+        # In Git repo — use HEAD version
+        echo "🔹 Using Git version from HEAD"
+        if git -C "$SRC_DIR" cat-file -e "HEAD:$input_file" 2>/dev/null; then
+            git -C "$SRC_DIR" show "HEAD:$input_file" > "$orig_path"
+        else
+            echo "⚠️  File $input_file is new (not in HEAD)"
+            echo "" > "$orig_path"
+        fi
+    else
+        echo "[!] Not a Git repo, please provide a reference to the original file with --original"
+        return 1
+    fi
+
+    # Generate the patch
+    if [[ -f "$src_path" ]]; then
+        diff -u "$orig_path" "$src_path" > "$patch_path" || true
+        echo "✅ Patch written to $patch_path"
+    else
+        echo "[!] Cannot find $src_path in source tree"
+        return 1
+    fi
 }
 
 ### Entry Point
