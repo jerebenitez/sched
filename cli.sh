@@ -3,6 +3,10 @@
 set -e
 
 SRC_DIR="/usr/src"
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
 print_usage() {
     echo "Usage: $0 [--src=<path>] <command> [options]"
@@ -56,7 +60,6 @@ rel_paths() {
 }
 
 command_check() {
-    echo $SRC_DIR
     echo "🔍 Running check on patches and file existence..."
     local failed=0
     for file in $(rel_paths); do
@@ -65,27 +68,28 @@ command_check() {
 
         # 1. Verify existence
         if [[ -f "$src_file" ]]; then
-            echo "[✔] $file exists in source tree"
+            printf "${GREEN}[✔] $file exists in source tree${NC}: "
+            
+            # 2. Verify if something changed
+            if [[ -f "$orig_file" ]]; then
+                if ! diff -q "$orig_file" "$src_file" &> /dev/null; then
+                    printf "${YELLOW}[CHANGED]${NC}\n"
+                else
+                    printf "${GREEN}[NOT CHANGED]${NC}\n"
+                fi
+            else
+                echo -e "${YELLOW}[⚠️] No orig/ version for $file. Can't compare.${NC}"
+            fi
+
         else
-            echo "[✘] $file missing in source tree"
-            failed=1
+            echo -e "${RED}[✘] $file missing in source tree${NC}"
+            : $(( failed += 1 ))
         fi
 
-        # 2. Verify if something changed
-        if [[ -f "$orig_file" ]]; then
-            if ! diff -q "$orig_file" "$src_file" &> /dev/null; then
-                echo "[⚠️ ] $file has changed since original (orig/ differs)"
-                failed=1
-            else
-                echo "[✔] $file is identical to orig/"
-            fi
-        else
-            echo "[⚠️ ] No orig/ version for $file. Can't compare."
-        fi
     done
 
     echo "🧪 Testing patch application..."
-    find patches -type f -name "*.patch" | while read -r patch_path; do
+    while read -r patch_path; do
         rel_file="${patch_path#patches/}"
         rel_file="${rel_file%.patch}"
 
@@ -93,23 +97,22 @@ command_check() {
 
         if [[ ! -f "$target_file" ]]; then
             echo "[!] Skipping $rel_file: does not exist in source tree"
-            failed=1
+            : $(( failed += 1 ))
             continue
         fi
 
-        echo "  → Applying patch to $rel_file"
         if patch --dry-run -p1 --strip=0 "$target_file" < "$patch_path" &> /dev/null; then
-            echo "[✔] Patch $patch applies cleanly"
+            echo -e "${GREEN}[✔] Patch $patch_path applies cleanly${NC}"
         else
-            echo "[✘] Patch $patch FAILED to apply"
-            failed=1
+            echo -e "${RED}[✘] Patch $patch_path FAILED to apply${NC}"
+            : $(( failed += 1 ))
         fi
-    done
+    done < <(find patches -type f -name "*.patch")
 
     if [[ $failed -eq 0 ]]; then
-        echo "✅ All checks passed"
+        echo -e "${GREEN}✅ All checks passed${NC}"
     else
-        echo "❌ Some checks failed"
+        echo -e "${RED}❌ ${failed} checks failed${NC}"
         exit 1
     fi
 }
