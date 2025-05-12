@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+source ./cli-completion.sh
 
 SRC_DIR="/usr/src"
 RED='\033[0;31m'
@@ -16,7 +17,6 @@ print_usage() {
     echo "  install|i           Copy files and apply patches"
     echo "  generate-diff|gd    Generate diff from source tree into patches/ and copy original files"
     echo "  update|u            Update one or more patches"
-    echo "  update-all|ua       Update all patches in patches/"
     echo ""
     echo "Options:"
     echo "  --src=<path>        Path to the FreeBSD source tree (default: /usr/src)"
@@ -44,7 +44,7 @@ print_generate_diff_usage() {
 
 print_update_usage() {
     echo ""
-    echo "Usage: $0 update --src=<path> -i <file> [-i <file2> ...] [--tool=<merge_tool>]"
+    echo "Usage: $0 update --src=<path> -i <file> [-i <file2> ...] [--tool=<merge_tool>] [--all]"
     echo ""
     echo "Description:"
     echo "  Updates one or more patches when the corresponding source files in the kernel have changed."
@@ -378,6 +378,5 @@ case "$CMD" in
     install|i)         command_install "$@";;
     generate-diff|gd)  command_generate_diff "$@";;
     update|u)          command_update "$@";;
-    update-all|ua)     command_update_all "$@";;
     *)                 print_usage; exit 1;;
 esac
