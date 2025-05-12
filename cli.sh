@@ -53,6 +53,7 @@ print_update_usage() {
     echo ""
     echo "Options:"
     echo "  -i, --input <file>        Relative path to a file in the source tree"
+    echo "  -a, --all                 Update all files in patches/"
     echo "      --tool=<tool>         Merge tool to use (default: diff3). Supported: diff3, vimdiff, meld"
     echo "      --src=<path>          Path to the FreeBSD source tree (default: /usr/src)"
     echo ""
@@ -62,35 +63,12 @@ print_update_usage() {
     echo ""
 }
 
-print_update_all_usage() {
-    echo ""
-    echo "Usage: $0 update-all --src=<path> -i <file> [-i <file2> ...] [--tool=<merge_tool>]"
-    echo ""
-    echo "Description:"
-    echo "  Updates all patches when the corresponding source files in the kernel have changed."
-    echo "  Reconstructs your modified version using orig/ + patch, then performs a 3-way merge"
-    echo "  with the updated file in the source tree. The result is used to regenerate the patch."
-    echo ""
-    echo "Options:"
-    echo "      --tool=<tool>         Merge tool to use (default: diff3). Supported: diff3, vimdiff, meld"
-    echo "      --src=<path>          Path to the FreeBSD source tree (default: /usr/src)"
-    echo ""
-    echo "Examples:"
-    echo "  $0 update-all --src=/usr/src"
-    echo "  $0 ua --tool=vimdiff"
-    echo ""
-}
-
 parse_global_opts() {
     for arg in "$@"; do
         case $arg in
             --src=*)
                 SRC_DIR="${arg#*=}"
                 shift
-                ;;
-            -h|--help)
-                print_usage
-                exit 0
                 ;;
         esac
     done
@@ -139,7 +117,7 @@ update_patch_for_file() {
     case "$merge_tool" in
         diff3)
             if ! diff3 -m "$reconstructed_my_version" "$orig_file" "$upstream_file" > "$merged_tmp"; then
-                echo "${YELLOW}Merge conflict detected — please resolve manually${NC}"
+                echo -e "${YELLOW}Merge conflict detected — please resolve manually${NC}"
                 rm -f "$reconstructed_my_version" "$merged_tmp"
                 return 1
             fi
@@ -188,14 +166,14 @@ command_check() {
 
         # 1. Verify existence
         if [[ -f "$src_file" ]]; then
-            printf "${GREEN}$file exists in source tree${NC}: "
+            printf "%b%s exists in source tree%b: " "$GREEN" "$file" "$NC"
             
             # 2. Verify if something changed
             if [[ -f "$orig_file" ]]; then
                 if ! diff -q "$orig_file" "$src_file" &> /dev/null; then
-                    printf "${YELLOW}[CHANGED]${NC}\n"
+                    printf "%b[CHANGED]%b\n" "$YELLOW" "$NC"
                 else
-                    printf "${GREEN}[NOT CHANGED]${NC}\n"
+                    printf "%b[NOT CHANGED]%b\n" "$GREEN" "$NC"
                 fi
             else
                 echo -e "${YELLOW}No orig/ version for $file. Can't compare.${NC}"
@@ -335,6 +313,7 @@ command_generate_diff() {
 command_update() {
     local input_files=()
     local merge_tool="diff3"
+    local all="false"
 
     # Parse options
     while [[ $# -gt 0 ]]; do
@@ -350,6 +329,9 @@ command_update() {
                 shift
                 merge_tool="$1"
                 ;;
+            --all)
+                all="true"
+                ;;
             -h|--help)
                 print_update_usage
                 return 0
@@ -363,52 +345,26 @@ command_update() {
         shift
     done
 
-    if [[ ${#input_files[@]} -eq 0 ]]; then
-        echo "At least one -i or --input must be provided."
-        print_update_usage
-        return 1
+    if [[ $all == "true" ]]; then
+        while read -r patch_path; do
+            rel_file="${patch_path#patches/}"
+            rel_file="${rel_file%.patch}"
+
+            echo "Refreshing patch for: $rel_file"
+            update_patch_for_file "$rel_file" "$merge_tool"
+        done < <(find patches -type f -name "*.patch")
+    else
+        if [[ ${#input_files[@]} -eq 0 ]]; then
+            echo "At least one -i or --input must be provided."
+            print_update_usage
+            return 1
+        fi
+
+        for file in "${input_files[@]}"; do
+            echo "Refreshing patch for: $file"
+            update_patch_for_file "$file" "$merge_tool"
+        done
     fi
-
-    for file in "${input_files[@]}"; do
-        echo "Refreshing patch for: $file"
-        update_patch_for_file "$file" "$merge_tool"
-    done
-}
-
-command_update_all() {
-    local input_files=()
-    local merge_tool="diff3"
-
-    # Parse options
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --tool=*)
-                merge_tool="${1#*=}"
-                ;;
-            --tool)
-                shift
-                merge_tool="$1"
-                ;;
-            -h|--help)
-                print_update_all_usage
-                return 0
-                ;;
-            *)
-                echo "Unknown option: $1"
-                print_update_all_usage
-                return 1
-                ;;
-        esac
-        shift
-    done
-
-    while read -r patch_path; do
-        rel_file="${patch_path#patches/}"
-        rel_file="${rel_file%.patch}"
-
-        echo "Refreshing patch for: $rel_file"
-        update_patch_for_file "$rel_file" "$merge_tool"
-    done < <(find patches -type f -name "*.patch")
 }
 
 ### Entry Point
