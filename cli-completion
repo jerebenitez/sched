@@ -1,0 +1,65 @@
+#!/bin/bash
+
+_cli() {
+    local COMMANDS="check install update generate-diff"
+    declare -A OPTIONS_MAPPING=(
+        ["global"]="--src"
+        ["generate-diff"]="-i --input --original"
+        ["update"]="--all -a --input -i --tool -t"
+    )
+
+    COMPREPLY=()
+    local CURRENT=${COMP_WORDS[$COMP_CWORD]}
+    local PREV=${COMP_WORDS[$COMP_CWORD - 1]}
+    local COMMAND=""
+    local SRCDIR="/usr/src"
+
+    # Detect --src=path and --src path
+    for word in "${COMP_WORDS[@]}"; do
+        [[ "$word" == --src=* ]] && SRCDIR="${word#--src=}"
+    done
+    for ((i=0; i < ${#COMP_WORDS[@]}; i++)); do
+        if [[ "${COMP_WORDS[i]}" == "--src" ]]; then
+            SRCDIR="${COMP_WORDS[i+1]}"
+        fi
+    done
+
+    # Detect command
+    for word in "${COMP_WORD[@]:1}"; do
+        case "$word" in
+            check|c)
+                COMMAND="check"
+                break
+                ;;
+            update|u)
+                COMMAND="update"
+                break
+                ;;
+            generate-diff|gd)
+                COMMAND="generate-diff"
+                break
+                ;;
+            install|i)
+                COMMAND="install"
+                break
+                ;;
+        esac
+    done
+
+    case "$PREV" in
+        --src)
+            compopt -o nospace
+            COMPREPLY=($( compgen -d -- "$CURRENT" ))
+            COMPREPLY=( "${COMPREPLY[@]/%//}" )
+            return 0
+            ;;
+    esac
+
+    if [[ $PREV != -* && -z "$COMMAND" && "$CURRENT" != -* ]]; then
+        COMPREPLY=($( compgen -W "$COMMANDS" -- "$CURRENT" ))
+    fi
+
+    COMPREPLY+=($( compgen -W "${OPTIONS_MAPPING["global"]}" -- "$CURRENT" ))
+}
+
+complete -F _cli ./cli
