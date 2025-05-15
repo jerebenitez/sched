@@ -8,8 +8,19 @@ complete_dir_option() {
 
         local path_prefix="${CURRENT#${option_name}=}"
 
-        COMPREPLY=($( compgen -d -- "$path_prefix"))
-        [[ ! -z "$path_prefix" ]] && COMPREPLY=(${COMPREPLY[@]}/)
+        COMPREPLY=($( compgen -S / -d -- "$path_prefix" ))
+        return 0
+    fi
+}
+
+complete_file_option() {
+    local option_name="$1"
+
+    if [[ "$CURRENT" == "$option_name="* ]]; then
+        compopt -o nospace
+
+        local file_prefix="${CURRENT#${option_name}=}"
+        COMPREPLY=($( compgen -f -- "$file_prefix" ))
         return 0
     fi
 }
@@ -25,7 +36,7 @@ _cli() {
     COMPREPLY=()
     local CURRENT PREV WORDS
     _get_comp_words_by_ref -n =: -c CURRENT -p PREV -w WORDS
-    local COMMAND=""
+    local COMMAND="global"
     local SRCDIR="/usr/src"
 
     # Detect --src=path path
@@ -55,17 +66,18 @@ _cli() {
         esac
     done
 
-    if [[ "$PREV" != -* && -z "$COMMAND" && "$CURRENT" != -* ]]; then
+    if [[ "$COMMAND" == "global" && "$CURRENT" != -* ]]; then
         COMPREPLY=($( compgen -W "$COMMANDS" -- "$CURRENT" ))
         return 0
     fi
 
     complete_dir_option --src
+    complete_file_option --input
+    complete_file_option --original
 
-    if [[ -z "$COMMAND" && "$CURRENT" == -* && "$CURRENT" != *=* ]]; then 
+    if [[ "$CURRENT" == -* && "$CURRENT" != *=* ]]; then
         compopt -o nospace
-        COMPREPLY+=($( compgen -W "${OPTIONS_MAPPING["global"]}" -- "$CURRENT" ))
-        return 0
+        COMPREPLY=($( compgen -W "${OPTIONS_MAPPING[$COMMAND]}" -- "$CURRENT" ))
     fi
 }
 
