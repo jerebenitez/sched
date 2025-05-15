@@ -1,31 +1,40 @@
 #!/bin/bash
 
+complete_dir_option() {
+    local option_name="$1"
+
+    if [[ "$CURRENT" == "$option_name="* ]]; then
+        compopt -o nospace
+
+        local path_prefix="${CURRENT#${option_name}=}"
+
+        COMPREPLY=($( compgen -d -- "$path_prefix"))
+        [[ ! -z "$path_prefix" ]] && COMPREPLY=(${COMPREPLY[@]}/)
+        return 0
+    fi
+}
+
 _cli() {
     local COMMANDS="check install update generate-diff"
     declare -A OPTIONS_MAPPING=(
-        ["global"]="--src"
-        ["generate-diff"]="-i --input --original"
-        ["update"]="--all -a --input -i --tool -t"
+        ["global"]="--src="
+        ["generate-diff"]="-i --input= --original="
+        ["update"]="--all --input= -i --tool= -t"
     )
 
     COMPREPLY=()
-    local CURRENT=${COMP_WORDS[$COMP_CWORD]}
-    local PREV=${COMP_WORDS[$COMP_CWORD - 1]}
+    local CURRENT PREV WORDS
+    _get_comp_words_by_ref -n =: -c CURRENT -p PREV -w WORDS
     local COMMAND=""
     local SRCDIR="/usr/src"
 
-    # Detect --src=path and --src path
-    for word in "${COMP_WORDS[@]}"; do
+    # Detect --src=path path
+    for word in "${WORDS[@]}"; do
         [[ "$word" == --src=* ]] && SRCDIR="${word#--src=}"
-    done
-    for ((i=0; i < ${#COMP_WORDS[@]}; i++)); do
-        if [[ "${COMP_WORDS[i]}" == "--src" ]]; then
-            SRCDIR="${COMP_WORDS[i+1]}"
-        fi
     done
 
     # Detect command
-    for word in "${COMP_WORD[@]:1}"; do
+    for word in "${WORDS[@]}"; do
         case "$word" in
             check|c)
                 COMMAND="check"
@@ -46,20 +55,18 @@ _cli() {
         esac
     done
 
-    case "$PREV" in
-        --src)
-            compopt -o nospace
-            COMPREPLY=($( compgen -d -- "$CURRENT" ))
-            COMPREPLY=( "${COMPREPLY[@]/%//}" )
-            return 0
-            ;;
-    esac
-
-    if [[ $PREV != -* && -z "$COMMAND" && "$CURRENT" != -* ]]; then
+    if [[ "$PREV" != -* && -z "$COMMAND" && "$CURRENT" != -* ]]; then
         COMPREPLY=($( compgen -W "$COMMANDS" -- "$CURRENT" ))
+        return 0
     fi
 
-    COMPREPLY+=($( compgen -W "${OPTIONS_MAPPING["global"]}" -- "$CURRENT" ))
+    complete_dir_option --src
+
+    if [[ -z "$COMMAND" && "$CURRENT" == -* && "$CURRENT" != *=* ]]; then 
+        compopt -o nospace
+        COMPREPLY+=($( compgen -W "${OPTIONS_MAPPING["global"]}" -- "$CURRENT" ))
+        return 0
+    fi
 }
 
 complete -F _cli ./cli
