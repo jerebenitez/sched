@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Returns filenames and directories, appending a slash to directory names.
+_mycmd_compgen_filenames() {
+    local cur="$1"
+
+    # Files, excluding directories:
+    grep -v -F -f <(compgen -d -P ^ -S '$' -- "$cur") \
+        <(compgen -f -P ^ -S '$' -- "$cur") |
+        sed -e 's/^\^//' -e 's/\$$/ /'
+
+    # Directories:
+    compgen -d -S / -- "$cur"
+}
+
 complete_dir_option() {
     local option_name="$1"
 
@@ -20,7 +33,7 @@ complete_file_option() {
         compopt -o nospace
 
         local file_prefix="${CURRENT#${option_name}=}"
-        COMPREPLY=($( compgen -f -- "$file_prefix" ))
+        COMPREPLY=($( _mycmd_compgen_filenames "$file_prefix" ))
         return 0
     fi
 }
