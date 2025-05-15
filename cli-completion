@@ -40,6 +40,7 @@ complete_file_option() {
 
 _cli() {
     local COMMANDS="check install update generate-diff"
+    local VALID_TOOLS="diff3 kdiff3 vimdiff meld"
     declare -A OPTIONS_MAPPING=(
         ["global"]="--src="
         ["generate-diff"]="-i --input= --original="
@@ -50,7 +51,7 @@ _cli() {
     local CURRENT PREV WORDS
     _get_comp_words_by_ref -n =: -c CURRENT -p PREV -w WORDS
     local COMMAND="global"
-    local SRCDIR="/usr/src"
+    local SRCDIR="/usr/src/"
 
     # Detect --src=path path
     for word in "${WORDS[@]}"; do
@@ -91,6 +92,11 @@ _cli() {
     if [[ "$CURRENT" == -* && "$CURRENT" != *=* ]]; then
         compopt -o nospace
         COMPREPLY=($( compgen -W "${OPTIONS_MAPPING[$COMMAND]}" -- "$CURRENT" ))
+    fi
+
+    if [[ "$CURRENT" == "--tool="* ]]; then
+        local option="${CURRENT#--tool=}"
+        COMPREPLY=($( compgen -W "$VALID_TOOLS" -- "$option" ))
     fi
 }
 
