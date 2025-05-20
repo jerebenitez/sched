@@ -31,7 +31,7 @@ print_generate_diff_usage() {
     echo "  - If Git is not available, you must provide the original version manually."
     echo ""
     echo "Options:"
-    echo "  -i, --input <file>           Relative path to the file inside the source tree (e.g. sys/kern/kern_exec.c)"
+    echo "  -i, --input=<file>           Relative path to the file inside the source tree (e.g. sys/kern/kern_exec.c)"
     echo "      --original=<path>        Path to the original (unmodified) file. Required if the source tree is not a Git repo."
     echo ""
     echo "Examples:"
@@ -50,7 +50,7 @@ print_update_usage() {
     echo "  with the updated file in the source tree. The result is used to regenerate the patch."
     echo ""
     echo "Options:"
-    echo "  -i, --input <file>        Relative path to a file in the source tree"
+    echo "  -i, --input=<file>        Relative path to a file in the source tree"
     echo "  -a, --all                 Update all files in patches/"
     echo "      --tool=<tool>         Merge tool to use (default: diff3). Supported: diff3, vimdiff, meld"
     echo ""
@@ -77,81 +77,72 @@ rel_paths() {
 
 update_patch_for_file() {
     local file="$1"
-    local merge_tool="${2:-diff3}"  # default: diff3
+    local merge_tool="${2:-diff3}"  # default to diff3
 
     local orig_file="orig/$file"
     local upstream_file="$SRC_DIR/$file"
     local patch_file="patches/$file.patch"
     local reconstructed_my_version
-    local merged_tmp
-    local old_patch_tmp new_patch_tmp
+    local temp_merge
+    local manual_merge_required=false
 
-    if [[ ! -f "$orig_file" ]]; then
-        echo -e "${RED}Missing orig/$file${NC}"
-        return 1
-    fi
-    if [[ ! -f "$patch_file" ]]; then
-        echo -e "${RED}Missing patches/$file.patch${NC}"
-        return 1
-    fi
-    if [[ ! -f "$upstream_file" ]]; then
-        echo -e "${RED}Missing $SRC_DIR/$file${NC}"
+    if [[ ! -f "$orig_file" || ! -f "$patch_file" || ! -f "$upstream_file" ]]; then
+        echo -e "${YELLOW}Skipping $file — required files missing${NC}"
         return 1
     fi
 
-    echo "Reconstructing modified version of $file..."
+    echo "Refreshing patch for $file..."
+
+    # Rebuild your version from orig + patch
     reconstructed_my_version=$(mktemp)
     cp "$orig_file" "$reconstructed_my_version"
     if ! patch --silent "$reconstructed_my_version" < "$patch_file"; then
-        echo -e "${RED}Failed to apply patch to orig/$file — cannot reconstruct${NC}"
+        echo -e "${RED}Cannot apply patch to orig/$file — patch is invalid${NC}"
         rm -f "$reconstructed_my_version"
         return 1
     fi
 
-    echo "Performing 3-way merge with tool: $merge_tool"
-    merged_tmp=$(mktemp)
+    temp_merge=$(mktemp)
 
-    case "$merge_tool" in
-        diff3)
-            if ! diff3 -m "$reconstructed_my_version" "$orig_file" "$upstream_file" > "$merged_tmp"; then
-                echo -e "${YELLOW}Merge conflict detected — please resolve manually${NC}"
-                rm -f "$reconstructed_my_version" "$merged_tmp"
-                return 1
-            fi
-            ;;
-        vimdiff|meld|kdiff3)
-            echo "Opening visual merge tool: $merge_tool"
-            $merge_tool "$reconstructed_my_version" "$orig_file" "$upstream_file"
-            echo "Merge tool exited — please verify changes and regenerate patch if needed."
-            rm -f "$reconstructed_my_version"
-            return 0
-            ;;
-        *)
-            echo -e "${RED}Unsupported merge tool: $merge_tool${NC}"
-            rm -f "$reconstructed_my_version"
-            return 1
-            ;;
-    esac
-
-    echo "Updating orig/$file with upstream version"
-    cp "$upstream_file" "$orig_file"
-
-    echo "Regenerating patch..."
-    mkdir -p "$(dirname "$patch_file")"
-
-    old_patch_tmp=$(mktemp)
-    cp "$patch_file" "$old_patch_tmp"
-    diff -u "$orig_file" "$reconstructed_my_version" > "$patch_file" || true
-    new_patch_tmp=$(mktemp)
-    cp "$patch_file" "$new_patch_tmp"
-
-    if diff -q "$old_patch_tmp" "$new_patch_tmp" &>/dev/null; then
-        echo "No changes detected in patch ($file.patch remains the same)"
-    else
-        echo -e "${GREEN}Patch updated: $patch_file${NC}"
+    # Try automatic merge
+    if ! diff3 -m "$reconstructed_my_version" "$orig_file" "$upstream_file" > "$temp_merge"; then
+        echo -e "${YELLOW}Conflict in $file — launching manual merge: $merge_tool${NC}"
+        manual_merge_required=true
     fi
 
-    rm -f "$reconstructed_my_version" "$merged_tmp" "$old_patch_tmp" "$new_patch_tmp"
+    if $manual_merge_required; then
+        case "$merge_tool" in
+            vimdiff)
+                vimdiff "$upstream_file" "$orig_file" "$reconstructed_my_version"
+                echo -n "Press ENTER to continue after resolving the merge..."
+                read -r
+                ;;
+            meld)
+                meld "$upstream_file" "$orig_file" "$reconstructed_my_version" &
+                echo -n "Press ENTER to continue after resolving the merge..."
+                read -r
+                ;;
+            *)
+                echo -e "${RED}Unsupported manual merge tool: $merge_tool${NC}"
+                rm -f "$reconstructed_my_version" "$temp_merge"
+                return 1
+                ;;
+        esac
+
+        # After merge, assume the user saved the merged file in place of reconstructed
+        cp "$reconstructed_my_version" "$temp_merge"
+    fi
+
+    # Update orig/ with the new upstream
+    cp "$upstream_file" "$orig_file"
+
+    # Regenerate patch
+    mkdir -p "$(dirname "$patch_file")"
+    diff -u "$orig_file" "$temp_merge" > "$patch_file" || true
+
+    echo -e "${GREEN}Updated patch: $patch_file${NC}"
+
+    rm -f "$reconstructed_my_version" "$temp_merge"
 }
 
 command_check() {
@@ -343,13 +334,15 @@ command_update() {
     done
 
     if [[ $all == "true" ]]; then
-        while read -r patch_path; do
+        mapfile -d '' patch_files < <(find patches -type f -name "*.patch" -print0)
+
+        for patch_path in "${patch_files[@]}"; do
             rel_file="${patch_path#patches/}"
             rel_file="${rel_file%.patch}"
 
             echo "Refreshing patch for: $rel_file"
             update_patch_for_file "$rel_file" "$merge_tool"
-        done < <(find patches -type f -name "*.patch")
+        done
     else
         if [[ ${#input_files[@]} -eq 0 ]]; then
             echo "At least one -i or --input must be provided."
