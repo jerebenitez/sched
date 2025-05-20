@@ -1,8 +1,6 @@
-diff --git a/sys/sys/proc.h b/sys/sys/proc.h
-index b08226c89..bab3f1a03 100644
---- a/sys/sys/proc.h
-+++ b/sys/sys/proc.h
-@@ -226,6 +226,23 @@ struct rusage_ext {
+--- orig/sys/sys/proc.h	2025-05-20 16:39:43.621364625 -0300
++++ /tmp/tmp.5TVxPbcOGi	2025-05-20 16:39:43.621364625 -0300
+@@ -226,6 +226,23 @@
  	uint64_t	rux_tu;         /* (c) Previous total time in usec. */
  };
  
@@ -26,15 +24,15 @@ index b08226c89..bab3f1a03 100644
  /*
   * Kernel runnable context (thread).
   * This is what is put to sleep and reactivated.
-@@ -250,6 +267,7 @@ struct thread {
- 	struct rl_q_entry *td_rlqe;	/* (k) Associated range lock entry. */
+@@ -250,6 +267,7 @@
+ 	void		*td_pad1;	/* Available */
  	struct umtx_q   *td_umtxq;	/* (c?) Link for when we're blocked. */
  	lwpid_t		td_tid;		/* (b) Thread ID. */
 +	int 		td_frominh;		/* Thread comes from an inhibited state*/
  	sigqueue_t	td_sigqueue;	/* (c) Sigs arrived, not delivered. */
  #define	td_siglist	td_sigqueue.sq_signals
  	u_char		td_lend_user_pri; /* (t) Lend user pri. */
-@@ -382,6 +400,7 @@ struct thread {
+@@ -383,6 +401,7 @@
  	void		*td_emuldata;	/* Emulator state data */
  	int		td_lastcpu;	/* (t) Last cpu we were on. */
  	int		td_oncpu;	/* (t) Which cpu we are on. */
@@ -42,7 +40,7 @@ index b08226c89..bab3f1a03 100644
  	void		*td_lkpi_task;	/* LinuxKPI task struct pointer */
  	int		td_pmcpend;
  	void		*td_remotereq;	/* (c) dbg remote request. */
-@@ -720,6 +739,9 @@ struct proc {
+@@ -718,6 +737,9 @@
  	int		p_pendingexits; /* (c) Count of pending thread exits. */
  	struct filemon	*p_filemon;	/* (c) filemon-specific data. */
  	int		p_pdeathsig;	/* (c) Signal from parent on exit. */

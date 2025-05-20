@@ -1,7 +1,5 @@
-diff --git a/sys/kern/sched_4bsd.c b/sys/kern/sched_4bsd.c
-index ff1e57746..5f14af64f 100644
---- a/sys/kern/sched_4bsd.c
-+++ b/sys/kern/sched_4bsd.c
+--- orig/sys/kern/sched_4bsd.c	2025-05-20 16:44:54.421304572 -0300
++++ /tmp/tmp.UfrCp2NTon	2025-05-20 16:44:54.417304624 -0300
 @@ -49,6 +49,7 @@
  #include <sys/proc.h>
  #include <sys/resourcevar.h>
@@ -10,7 +8,7 @@ index ff1e57746..5f14af64f 100644
  #include <sys/sdt.h>
  #include <sys/smp.h>
  #include <sys/sysctl.h>
-@@ -638,6 +639,7 @@ sched_setup(void *dummy)
+@@ -638,6 +639,7 @@
  {
  
  	setup_runqs();
@@ -18,7 +16,7 @@ index ff1e57746..5f14af64f 100644
  
  	/* Account for thread0. */
  	sched_load_add();
-@@ -674,6 +676,7 @@ schedinit(void)
+@@ -674,6 +676,7 @@
  	thread0.td_lock = &sched_lock;
  	td_get_sched(&thread0)->ts_slice = sched_slice;
  	mtx_init(&sched_lock, "sched lock", NULL, MTX_SPIN);
@@ -26,7 +24,7 @@ index ff1e57746..5f14af64f 100644
  }
  
  void
-@@ -1021,6 +1024,19 @@ sched_switch(struct thread *td, int flags)
+@@ -1019,6 +1022,19 @@
  	td->td_owepreempt = 0;
  	td->td_oncpu = NOCPU;
  
@@ -46,7 +44,7 @@ index ff1e57746..5f14af64f 100644
  	/*
  	 * At the last moment, if this thread is still marked RUNNING,
  	 * then put it back on the run queue as it has not been suspended
-@@ -1040,22 +1056,12 @@ sched_switch(struct thread *td, int flags)
+@@ -1038,22 +1054,12 @@
  		}
  	}
  
@@ -70,7 +68,7 @@ index ff1e57746..5f14af64f 100644
  
  #if (KTR_COMPILE & KTR_SCHED) != 0
  	if (TD_IS_IDLETHREAD(td))
-@@ -1284,26 +1290,18 @@ kick_other_cpu(int pri, int cpuid)
+@@ -1281,26 +1287,18 @@
  static int
  sched_pickcpu(struct thread *td)
  {
@@ -89,22 +87,22 @@ index ff1e57746..5f14af64f 100644
 -	CPU_FOREACH(cpu) {
 -		if (!THREAD_CAN_SCHED(td, cpu))
 -			continue;
-+		cpu = (int)(transition / CPU_BASE_TRANSITIONS);
- 
+-
 -		if (best == NOCPU)
 -			best = cpu;
 -		else if (runq_length[cpu] < runq_length[best])
 -			best = cpu;
 -	}
 -	KASSERT(best != NOCPU, ("no valid CPUs"));
--
++		cpu = (int)(transition / CPU_BASE_TRANSITIONS);
+ 
 -	return (best);
 +	KASSERT(cpu != NOCPU, ("no valid CPUs"));
 +	return (cpu);
  }
  #endif
  
-@@ -1347,6 +1345,7 @@ sched_add(struct thread *td, int flags)
+@@ -1344,6 +1342,7 @@
  	}
  	TD_SET_RUNQ(td);
  
@@ -112,7 +110,7 @@ index ff1e57746..5f14af64f 100644
  	/*
  	 * If SMP is started and the thread is pinned or otherwise limited to
  	 * a specific set of CPUs, queue the thread to a per-CPU run queue.
-@@ -1356,29 +1355,35 @@ sched_add(struct thread *td, int flags)
+@@ -1353,29 +1352,35 @@
  	 * as per-CPU state may not be initialized yet and we may crash if we
  	 * try to access the per-CPU run queues.
  	 */
@@ -151,7 +149,7 @@ index ff1e57746..5f14af64f 100644
  	}
  
  	if ((td->td_flags & TDF_NOLOAD) == 0)
-@@ -1474,8 +1479,11 @@ sched_rem(struct thread *td)
+@@ -1471,8 +1476,11 @@
  	if ((td->td_flags & TDF_NOLOAD) == 0)
  		sched_load_rem();
  #ifdef SMP
@@ -164,7 +162,7 @@ index ff1e57746..5f14af64f 100644
  #endif
  	runq_remove(ts->ts_runq, td);
  	TD_SET_CAN_RUN(td);
-@@ -1488,26 +1496,53 @@ sched_rem(struct thread *td)
+@@ -1485,26 +1493,53 @@
  struct thread *
  sched_choose(void)
  {
@@ -183,12 +181,12 @@ index ff1e57746..5f14af64f 100644
 -	td = runq_choose_fuzz(&runq, runq_fuzz);
 -	tdcpu = runq_choose(&runq_pcpu[PCPU_GET(cpuid)]);
 +	cpu_n = PCPU_GET(cpuid);
- 
--	if (td == NULL ||
++
 +	rq = &runq; // Cola global
 +	td = runq_choose_fuzz(&runq, runq_fuzz); // Selecciona un thread de la cola global
 +	tdcpu = runq_choose(&runq_pcpu[cpu_n]); // Selecciona un thread de la cola de la CPU que está corriendo
-+
+ 
+-	if (td == NULL ||
 +	if (is_cpu_suspended(cpu_n) || 
 +		td == NULL ||
  	    (tdcpu != NULL &&
@@ -226,7 +224,7 @@ index ff1e57746..5f14af64f 100644
  	}
  
  #else
-@@ -1518,7 +1553,7 @@ sched_choose(void)
+@@ -1515,7 +1550,7 @@
  	if (td) {
  #ifdef SMP
  		if (td == tdcpu)
@@ -235,7 +233,7 @@ index ff1e57746..5f14af64f 100644
  #endif
  		runq_remove(rq, td);
  		td->td_flags |= TDF_DIDRUN;
-@@ -1527,7 +1562,10 @@ sched_choose(void)
+@@ -1524,7 +1559,10 @@
  		    ("sched_choose: thread swapped out"));
  		return (td);
  	}
@@ -247,7 +245,7 @@ index ff1e57746..5f14af64f 100644
  }
  
  void
-@@ -1695,10 +1733,13 @@ sched_idletd(void *dummy)
+@@ -1692,10 +1730,13 @@
  static void
  sched_throw_tail(struct thread *td)
  {
@@ -263,7 +261,7 @@ index ff1e57746..5f14af64f 100644
  }
  
  /*
-@@ -1738,6 +1779,7 @@ sched_throw(struct thread *td)
+@@ -1735,6 +1776,7 @@
  	lock_profile_release_lock(&sched_lock.lock_object, true);
  	td->td_lastcpu = td->td_oncpu;
  	td->td_oncpu = NOCPU;

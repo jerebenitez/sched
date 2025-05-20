@@ -119,7 +119,7 @@ SYSCTL_INT(_debug, OID_AUTO, __elfN(legacy_coredump), CTLFLAG_RW,
 
 int __elfN(nxstack) =
 #if defined(__amd64__) || defined(__powerpc64__) /* both 64 and 32 bit */ || \
-    (defined(__arm__) && __ARM_ARCH >= 7) || defined(__aarch64__) || \
+    defined(__arm__) || defined(__aarch64__) || \
     defined(__riscv)
 	1;
 #else
@@ -127,7 +127,7 @@ int __elfN(nxstack) =
 #endif
 SYSCTL_INT(__CONCAT(_kern_elf, __ELF_WORD_SIZE), OID_AUTO,
     nxstack, CTLFLAG_RW, &__elfN(nxstack), 0,
-    __XSTRING(__CONCAT(ELF, __ELF_WORD_SIZE)) ": enable non-executable stack");
+    __XSTRING(__CONCAT(ELF, __ELF_WORD_SIZE)) ": support PT_GNU_STACK for non-executable stack control");
 
 #if defined(__amd64__)
 static int __elfN(vdso) = 1;
@@ -617,9 +617,9 @@ __elfN(map_insert)(const struct image_params *imgp, vm_map_t map,
 	return (KERN_SUCCESS);
 }
 
-static int __elfN(load_section)(const struct image_params *imgp,
-    vm_ooffset_t offset, caddr_t vmaddr, size_t memsz, size_t filsz,
-    vm_prot_t prot)
+static int
+__elfN(load_section)(const struct image_params *imgp, vm_ooffset_t offset,
+    caddr_t vmaddr, size_t memsz, size_t filsz, vm_prot_t prot)
 {
 	struct sf_buf *sf;
 	size_t map_len;
@@ -1158,8 +1158,10 @@ __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp)
 	maxalign = PAGE_SIZE;
 	maxsalign = PAGE_SIZE * 1024;
 	for (i = MAXPAGESIZES - 1; i > 0; i--) {
-		if (pagesizes[i] > maxsalign)
+		if (pagesizes[i] > maxsalign) {
 			maxsalign = pagesizes[i];
+			break;
+		}
 	}
 
 	mapsz = 0;
@@ -1360,8 +1362,12 @@ __CONCAT(exec_, __elfN(imgact))(struct image_params *imgp)
 	if ((map->flags & MAP_ASLR) != 0) {
 		maxv1 = maxv / 2 + addr / 2;
 		error = __CONCAT(rnd_, __elfN(base))(map, addr, maxv1,
-		    (MAXPAGESIZES > 1 && pagesizes[1] != 0) ?
-		    pagesizes[1] : pagesizes[0], &anon_loc);
+#if VM_NRESERVLEVEL > 0
+		    pagesizes[VM_NRESERVLEVEL] != 0 ?
+		    /* Align anon_loc to the largest superpage size. */
+		    pagesizes[VM_NRESERVLEVEL] :
+#endif
+		    pagesizes[0], &anon_loc);
 		if (error != 0)
 			goto ret;
 		map->anon_loc = anon_loc;
@@ -1568,6 +1574,7 @@ static void __elfN(note_threadmd)(void *, struct sbuf *, size_t *);
 static void __elfN(note_procstat_auxv)(void *, struct sbuf *, size_t *);
 static void __elfN(note_procstat_proc)(void *, struct sbuf *, size_t *);
 static void __elfN(note_procstat_psstrings)(void *, struct sbuf *, size_t *);
+static void __elfN(note_procstat_kqueues)(void *, struct sbuf *, size_t *);
 static void note_procstat_files(void *, struct sbuf *, size_t *);
 static void note_procstat_groups(void *, struct sbuf *, size_t *);
 static void note_procstat_osrel(void *, struct sbuf *, size_t *);
@@ -1893,6 +1900,8 @@ __elfN(prepare_notes)(struct thread *td, struct note_info_list *list,
 	    __elfN(note_procstat_psstrings), p);
 	size += __elfN(register_note)(td, list, NT_PROCSTAT_AUXV,
 	    __elfN(note_procstat_auxv), p);
+	size += __elfN(register_note)(td, list, NT_PROCSTAT_KQUEUES,
+	    __elfN(note_procstat_kqueues), p);
 
 	*sizep = size;
 }
@@ -2415,6 +2424,9 @@ __elfN(prepare_register_notes)(struct thread *td, struct note_info_list *list,
 
 	size = 0;
 
+	if (target_td == td)
+		cpu_update_pcb(target_td);
+
 	/* NT_PRSTATUS must be the first register set note. */
 	size += __elfN(register_regset_note)(td, list, &__elfN(regset_prstatus),
 	    target_td);
@@ -2707,6 +2719,54 @@ __elfN(note_procstat_auxv)(void *arg, struct sbuf *sb, size_t *sizep)
 		PHOLD(p);
 		proc_getauxv(curthread, p, sb);
 		PRELE(p);
+	}
+}
+
+static void
+__elfN(note_procstat_kqueues)(void *arg, struct sbuf *sb, size_t *sizep)
+{
+	struct proc *p;
+	size_t size, sect_sz, i;
+	ssize_t start_len, sect_len;
+	int structsize;
+	bool compat32;
+
+#if defined(COMPAT_FREEBSD32) && __ELF_WORD_SIZE == 32
+	compat32 = true;
+	structsize = sizeof(struct kinfo_knote32);
+#else
+	compat32 = false;
+	structsize = sizeof(struct kinfo_knote);
+#endif
+	p = arg;
+	if (sb == NULL) {
+		size = 0;
+		sb = sbuf_new(NULL, NULL, 128, SBUF_FIXEDLEN);
+		sbuf_set_drain(sb, sbuf_count_drain, &size);
+		sbuf_bcat(sb, &structsize, sizeof(structsize));
+		kern_proc_kqueues_out(p, sb, -1, compat32);
+		sbuf_finish(sb);
+		sbuf_delete(sb);
+		*sizep = size;
+	} else {
+		sbuf_start_section(sb, &start_len);
+
+		sbuf_bcat(sb, &structsize, sizeof(structsize));
+		kern_proc_kqueues_out(p, sb, *sizep - sizeof(structsize),
+		    compat32);
+
+		sect_len = sbuf_end_section(sb, start_len, 0, 0);
+		if (sect_len < 0)
+			return;
+		sect_sz = sect_len;
+
+		KASSERT(sect_sz <= *sizep,
+		    ("kern_proc_kqueue_out did not respect maxlen; "
+		     "requested %zu, got %zu", *sizep - sizeof(structsize),
+		     sect_sz - sizeof(structsize)));
+
+		for (i = 0; i < *sizep - sect_sz && sb->s_error == 0; i++)
+			sbuf_putc(sb, 0);
 	}
 }
 

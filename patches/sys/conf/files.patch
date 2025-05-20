@@ -1,8 +1,6 @@
-diff --git a/sys/conf/files b/sys/conf/files
-index c902bcfdb..49c9af52b 100644
---- a/sys/conf/files
-+++ b/sys/conf/files
-@@ -3835,6 +3835,9 @@ kern/p1003_1b.c			standard
+--- orig/sys/conf/files	2025-05-20 16:44:54.445304262 -0300
++++ /tmp/tmp.S1j2Bkxnxn	2025-05-20 16:44:54.445304262 -0300
+@@ -3862,6 +3862,9 @@
  kern/posix4_mib.c		standard
  kern/sched_4bsd.c		optional sched_4bsd
  kern/sched_ule.c		optional sched_ule
@@ -12,7 +10,7 @@ index c902bcfdb..49c9af52b 100644
  kern/serdev_if.m		standard
  kern/stack_protector.c		standard \
  	compile-with "${NORMAL_C:N-fstack-protector*}"
-@@ -5180,6 +5183,10 @@ security/mac_veriexec/mac_veriexec_sha1.c		optional mac_veriexec_sha1
+@@ -5227,6 +5230,10 @@
  security/mac_veriexec/mac_veriexec_sha256.c		optional mac_veriexec_sha256
  security/mac_veriexec/mac_veriexec_sha384.c		optional mac_veriexec_sha384
  security/mac_veriexec/mac_veriexec_sha512.c		optional mac_veriexec_sha512

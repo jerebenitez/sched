@@ -1,7 +1,5 @@
-diff --git a/sys/kern/kern_exec.c b/sys/kern/kern_exec.c
-index ae2b624c2..f7247129d 100644
---- a/sys/kern/kern_exec.c
-+++ b/sys/kern/kern_exec.c
+--- orig/sys/kern/kern_exec.c	2025-05-20 16:44:54.397304882 -0300
++++ /tmp/tmp.jplCNQ7GYk	2025-05-20 16:44:54.393304934 -0300
 @@ -72,6 +72,13 @@
  #include <sys/umtxvar.h>
  #include <sys/vnode.h>
@@ -16,10 +14,10 @@ index ae2b624c2..f7247129d 100644
  #ifdef KTRACE
  #include <sys/ktrace.h>
  #endif
-@@ -227,10 +234,20 @@ sys_execve(struct thread *td, struct execve_args *uap)
+@@ -226,10 +233,20 @@
+ 	if (error != 0)
  		return (error);
- 	error = exec_copyin_args(&args, uap->fname, UIO_USERSPACE,
- 	    uap->argv, uap->envv);
+ 	error = exec_copyin_args(&args, uap->fname, uap->argv, uap->envv);
 +    
 +	//va aca porque se necesita copyinstr/copystr de execve_args
 +	//log(LOG_INFO, "\n1) ** NEW EXECVE CALL ** sys_execve() ** has been called for: %s\n", args.fname);
@@ -37,7 +35,7 @@ index ae2b624c2..f7247129d 100644
  	return (error);
  }
  
-@@ -410,7 +427,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -416,7 +433,7 @@
  	size_t freepath_size;
  	static const char fexecv_proc_title[] = "(fexecv)";
  
@@ -46,7 +44,7 @@ index ae2b624c2..f7247129d 100644
  	oldtextvp = oldtextdvp = NULL;
  	newtextvp = newtextdvp = NULL;
  	newbinname = oldbinname = NULL;
-@@ -435,10 +452,10 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -441,10 +458,10 @@
  	 * Initialize part of the common data
  	 */
  	bzero(imgp, sizeof(*imgp));
@@ -61,7 +59,7 @@ index ae2b624c2..f7247129d 100644
  	orig_osrel = p->p_osrel;
  	orig_fctl0 = p->p_fctl0;
  	orig_brandinfo = p->p_elf_brandinfo;
-@@ -478,14 +495,14 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -486,14 +503,14 @@
  		if (error)
  			goto exec_fail;
  
@@ -78,7 +76,7 @@ index ae2b624c2..f7247129d 100644
  
  		/*
  		 * Do the best to calculate the full path to the image file.
-@@ -592,7 +609,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -600,7 +617,7 @@
  	if (credential_changing)
  		imgp->proc->p_pdeathsig = 0;
  
@@ -87,7 +85,7 @@ index ae2b624c2..f7247129d 100644
  #ifdef CAPABILITY_MODE
  	    ((oldcred->cr_flags & CRED_FLAG_CAPMODE) == 0) &&
  #endif
-@@ -603,11 +620,11 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -611,11 +628,11 @@
  		imgp->newcred = crdup(oldcred);
  		if (attr.va_mode & S_ISUID) {
  			euip = uifind(attr.va_uid);
@@ -101,7 +99,7 @@ index ae2b624c2..f7247129d 100644
  		/*
  		 * Implement correct POSIX saved-id behavior.
  		 *
-@@ -647,10 +664,10 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -655,10 +672,10 @@
  	 *	and an error otherwise.
  	 */
  	error = -1;
@@ -114,7 +112,7 @@ index ae2b624c2..f7247129d 100644
  	}
  
  	if (error) {
-@@ -664,7 +681,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -672,7 +689,7 @@
  	 * activate the interpreter.
  	 */
  	if (imgp->interpreted) {
@@ -123,7 +121,7 @@ index ae2b624c2..f7247129d 100644
  		/*
  		 * The text reference needs to be removed for scripts.
  		 * There is a short period before we determine that
-@@ -673,7 +690,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -681,7 +698,7 @@
  		 * so nothing should illegitimately be blocked.
  		 */
  		MPASS(imgp->textset);
@@ -132,7 +130,7 @@ index ae2b624c2..f7247129d 100644
  		imgp->textset = false;
  		/* free name buffer and old vnode */
  #ifdef MAC
-@@ -683,7 +700,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -691,7 +708,7 @@
  			VOP_CLOSE(newtextvp, FREAD, td->td_ucred, td);
  			imgp->opened = false;
  		}
@@ -141,7 +139,7 @@ index ae2b624c2..f7247129d 100644
  		imgp->vp = newtextvp = NULL;
  		if (args->fname != NULL) {
  			if (newtextdvp != NULL) {
-@@ -694,7 +711,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -702,7 +719,7 @@
  			free(newbinname, M_PARGS);
  			newbinname = NULL;
  		}
@@ -150,7 +148,7 @@ index ae2b624c2..f7247129d 100644
  		imgp->object = NULL;
  		execve_nosetid(imgp);
  		imgp->execpath = NULL;
-@@ -862,7 +879,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -870,7 +887,7 @@
  	 * Set the new credentials.
  	 */
  	if (imgp->newcred != NULL) {
@@ -159,7 +157,7 @@ index ae2b624c2..f7247129d 100644
  		crfree(oldcred);
  		oldcred = NULL;
  	}
-@@ -872,7 +889,7 @@ do_execve(struct thread *td, struct image_args *args, struct mac *mac_p,
+@@ -880,7 +897,7 @@
  	 * referenced by namei() or by fexecve variant of fname handling.
  	 */
  	oldtextvp = p->p_textvp;

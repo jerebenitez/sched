@@ -1,10 +1,8 @@
-diff --git a/sys/Makefile b/sys/Makefile
-index f3702606f..77f50fbf5 100644
---- a/sys/Makefile
-+++ b/sys/Makefile
-@@ -4,7 +4,7 @@ CSCOPEDIRS=	bsm cam cddl compat conf contrib crypto ddb dev fs gdb \
+--- orig/sys/Makefile	2025-05-20 16:39:43.641364244 -0300
++++ /tmp/tmp.nCxUQfADNp	2025-05-20 16:39:43.641364244 -0300
+@@ -3,7 +3,7 @@
  		geom gnu isa kern libkern modules net net80211 \
- 		netgraph netinet netinet6 netipsec netpfil \
+ 		netgraph netinet netinet6 netipsec netlink netpfil \
  		netsmb nfs nfsclient nfsserver nlm ofed opencrypto \
 -		rpc security sys ufs vm xdr xen ${CSCOPE_ARCHDIR}
 +		rpc security stats sys ufs vm xdr xen ${CSCOPE_ARCHDIR}
